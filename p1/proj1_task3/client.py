@@ -4,7 +4,9 @@
 import socket
 import os
 import sys
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+from cryptography.hazmat.primitives.asymmetric import padding
 
 # --- Configuration ---
 HOST = '127.0.0.1'  # The server's hostname or IP address
@@ -36,14 +38,23 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             after connecting, need to derive session keys, and securely exchange them with the server
         '''
         # ---- your code here   ----
-        session_key = b"123" # placeholder for keys to be sent to server
-        s.sendall(session_key) # placeholder for sending keys to server
 
-        pub_bytes = s.recv(4096)
+        pub_bytes = s.recv(4096) #receive public key from server
 
-        # now deserialize
-        server_pub = serialization.load_pem_public_key(pub_bytes)
-        print("Received public key:\n", pub_bytes.decode())
+        server_pub = serialization.load_pem_public_key(pub_bytes) #deserialize public
+
+        session_key = ChaCha20Poly1305.generate_key() #generate session key
+
+        encrypted_key = server_pub.encrypt( #encrypt session key
+            session_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+
+        s.sendall(encrypted_key) #sends session key to server
 
         # DO NOT CHANGE THE PRINT STATEMENT BELOW. PRINT SESSION KEY IF SUCCESSFULLY GENERATED.
         print(f"Generated session key {session_key.hex()}") 

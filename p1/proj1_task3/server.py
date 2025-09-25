@@ -3,8 +3,8 @@
 
 import socket
 import os
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
 
 # --- Configuration ---
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
@@ -90,17 +90,24 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             6. Both server and client now use this symmetric key for encrypting/decrypting further communication.
         '''
         # ---- your code here   ----
-        session_key = conn.recv(1024) # placeholder for receiving keys from client
-        pk = rsa.generate_private_key(public_exponent = 65537, key_size = 2048)
-        pub = pk.public_key()
+        pk = rsa.generate_private_key(public_exponent = 65537, key_size = 2048) #generate private key
+        pub = pk.public_key() #public key to send to client
         pub_bytes = pub.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )                           
-        print("Server public key:\n", pub_bytes.decode())
-        conn.sendall(pub_bytes)
 
+        conn.sendall(pub_bytes) #send public key to client
 
+        encrypted_session_key = conn.recv(256) #receive encrypted session key from client
+        session_key = pk.decrypt( #decrypt session key
+            encrypted_session_key,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
 
         # DO NOT CHANGE THE PRINT STATEMENT BELOW. PRINT THE SESSION KEY IF SUCCESSFULLY RECEIVED.
         print(f"Decrypted session key: {session_key.hex()}") 
