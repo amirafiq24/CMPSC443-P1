@@ -3,6 +3,8 @@
 
 import socket
 import os
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 
 # --- Configuration ---
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
@@ -89,6 +91,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         '''
         # ---- your code here   ----
         session_key = conn.recv(1024) # placeholder for receiving keys from client
+        pk = rsa.generate_private_key(public_exponent = 65537, key_size = 2048)
+        pub = pk.public_key()
+        pub_bytes = pub.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )                           
+        print("Server public key:\n", pub_bytes.decode())
+        conn.sendall(pub_bytes)
+
 
 
         # DO NOT CHANGE THE PRINT STATEMENT BELOW. PRINT THE SESSION KEY IF SUCCESSFULLY RECEIVED.

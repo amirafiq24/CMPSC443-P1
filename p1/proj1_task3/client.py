@@ -4,6 +4,7 @@
 import socket
 import os
 import sys
+from cryptography.hazmat.primitives import serialization
 
 # --- Configuration ---
 HOST = '127.0.0.1'  # The server's hostname or IP address
@@ -37,6 +38,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         # ---- your code here   ----
         session_key = b"123" # placeholder for keys to be sent to server
         s.sendall(session_key) # placeholder for sending keys to server
+
+        pub_bytes = s.recv(4096)
+
+        # now deserialize
+        server_pub = serialization.load_pem_public_key(pub_bytes)
+        print("Received public key:\n", pub_bytes.decode())
 
         # DO NOT CHANGE THE PRINT STATEMENT BELOW. PRINT SESSION KEY IF SUCCESSFULLY GENERATED.
         print(f"Generated session key {session_key.hex()}") 
