@@ -4,9 +4,12 @@
 import socket
 import os
 import sys
+
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.asymmetric import padding
+
+import srp
 
 # --- Configuration ---
 HOST = '127.0.0.1'  # The server's hostname or IP address
@@ -79,12 +82,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             sys.exit() 
 
         # ---- your code here   ----
+        usr = srp.User(user_id, password)
+        uname, A = usr.start_authentication()
+
+        secure_send_msg(s, uname.encode(), session_key)
+        secure_send_msg(s, A.hex().encode(), session_key)
+
         credentials = f"{user_id}{SEPARATOR}{password}" # Placeholder for credentials to be sent 
 
         # placehoder responce logic for validating credentials
-        secure_send_msg(s, credentials.encode('utf-8'))
+        secure_send_msg(s, credentials.encode('utf-8'), session_key)
         
-        response = secure_receive_msg(s).decode('utf-8')
+        response = secure_receive_msg(s, session_key).decode('utf-8')
         if response != "ID_VALID":
 
             # DO NOT CHANGE THE PRINT STATEMENT BELOW. ALWAYS INCLUDE IT WHEN ID IS INVALID or REGISTER FAILED.
@@ -118,7 +127,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             parts = user_input.split()
             command = parts[0]
             
-            secure_send_msg(s, user_input.encode('utf-8')) # Send the full command
+            secure_send_msg(s, user_input.encode('utf-8'), session_key) # Send the full command
 
             if command == "exit":
                 break
@@ -132,7 +141,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     break
 
                 # Wait for server's green light
-                server_response = secure_receive_msg(s).decode('utf-8')
+                server_response = secure_receive_msg(s, session_key).decode('utf-8')
                 if server_response == "READY_TO_RECEIVE":
                     ''' TODO (Step 3): 
                         before sending it to the server, you should encrypt the file (Secrecy and Integrity)
@@ -147,10 +156,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
                         print(f"Server is ready. Sending file '{filepath}'...")
                          # Send file size first
-                        secure_send_msg(s, encrypted_data)  # Placeholder to initiate send_data
+                        secure_send_msg(s, encrypted_data, session_key)  # Placeholder to initiate send_data
                     
                         # Wait for server's final confirmation
-                        confirmation = secure_receive_msg(s).decode('utf-8')
+                        confirmation = secure_receive_msg(s, session_key).decode('utf-8')
                         print(f"Server: {confirmation}")
 
             elif command == "get":
@@ -158,13 +167,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 save_path = os.path.join(DOWNLOAD_FOLDER, os.path.basename(filename))
                 
                 # Check if server has the file
-                server_response = secure_receive_msg(s).decode('utf-8')
+                server_response = secure_receive_msg(s, session_key).decode('utf-8')
                 if server_response.startswith("ERROR"):
                     print(f"Server: {server_response}")
                 elif server_response == "FILE_EXISTS":
                     # Signal server we're ready to receive
-                    secure_send_msg(s, "CLIENT_READY".encode('utf-8'))
-                    data = secure_receive_msg(s)
+                    secure_send_msg(s, "CLIENT_READY".encode('utf-8'), session_key)
+                    data = secure_receive_msg(s, session_key)
                     print(f"received data {data}")
                     with open(save_path, "wb") as f:
                         '''TODO (Step 3): decode the file (Secrecy and Integrity)'''

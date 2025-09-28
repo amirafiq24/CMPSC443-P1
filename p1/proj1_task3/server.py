@@ -31,22 +31,28 @@ def load_valid_ids():
     with open(VALID_IDS_FILE, "r") as f:
         for line in f:
             if SEPARATOR in line:
-                user, pwd = line.strip().split(SEPARATOR, 1)
-                ids[user] = pwd
+                user, salt_hex, vkey_hex = line.strip().split(SEPARATOR, 2)
+                ids[user] = (
+                    bytes.fromhex(salt_hex),
+                    bytes.fromhex(vkey_hex)
+                )
     
     print(f"Loaded {len(ids)} valid IDs from '{VALID_IDS_FILE}'.")
     return ids
 
 ''' TODO (Step 2): Modify this function to store verifier (salt + vkey) instead of plaintext passwords.
 '''
-def save_new_id(user_id, password, ids_dict):
+def save_new_id(user_id, salt: bytes, vkey: bytes, ids_dict):
     """Appends a new user ID to the file and updates the set."""
-    if user_id and password:
+    if user_id and salt and vkey:
         # --- your code here   ---- 
-        with open(VALID_IDS_FILE, "a") as f:
-            f.write(f"{user_id}{SEPARATOR}{password}\n") # placeholder for storing password securely 
+        salt_hex = salt.hex()
+        vkey_hex = vkey.hex()
 
-        ids_dict[user_id] = password # placeholder for storing password securely
+        with open(VALID_IDS_FILE, "a") as f:
+            f.write(f"{user_id}{SEPARATOR}{salt_hex}{SEPARATOR}{vkey_hex}\n") # placeholder for storing password securely 
+
+        ids_dict[user_id] = (salt, vkey) # placeholder for storing password securely
 
         print(f"New user '{user_id}' registered.") 
 
@@ -127,7 +133,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         '''
 
         # --- your code here   ----
-        credentials = secure_receive_msg(conn).decode('utf-8') # placeholder for receiving credentials
+        uname = secure_receive_msg(conn, session_key).decode()
+        A_hex = secure_receive_msg(conn, session_key).decode()
+        A = bytes.fromhex(A_hex)
+
+        svr = srp.Verifier(uname, salt, vkey, A)
+        s, B = srp.get_challenge()
 
 
         # placehoder logic for validating credentials
@@ -140,16 +151,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
         if user_id in VALID_IDS:
             if VALID_IDS[user_id] == password: # placeholder for secure password check 
-                secure_send_msg(conn, "ID_VALID".encode('utf-8'))
+                secure_send_msg(conn, "ID_VALID".encode('utf-8'), session_key)
             else:
-                secure_send_msg(conn, "ID_INVALID".encode('utf-8'))
+                secure_send_msg(conn, "ID_INVALID".encode('utf-8'), session_key)
                 print(f"Invalid password for user '{user_id}'.")
                 conn.close()
                 exit()
         else:
             # Register new user
             save_new_id(user_id, password, VALID_IDS)
-            secure_send_msg(conn, "ID_VALID".encode('utf-8'))
+            secure_send_msg(conn, "ID_VALID".encode('utf-8'), session_key)
 
         # --- your code end here  ----
 
@@ -159,7 +170,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         # --- Command Handling Loop ---
         while True:
             try:
-                command_data = secure_receive_msg(conn).decode('utf-8')
+                command_data = secure_receive_msg(conn, session_key).decode('utf-8')
                 if not command_data:
                     break # Client closed the connection
                     
@@ -185,16 +196,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     filepath = os.path.join(SERVER_STORAGE, os.path.basename(filename))
 
                     # Acknowledge the command and signal readiness to receive file
-                    secure_send_msg(conn, "READY_TO_RECEIVE".encode('utf-8'))
+                    secure_send_msg(conn, "READY_TO_RECEIVE".encode('utf-8'), session_key)
 
                     # Receive file size first (16 bytes)
-                    data = secure_receive_msg(conn)
+                    data = secure_receive_msg(conn, session_key)
                     print(f"receiving data {data}")
                     with open(filepath, "wb") as f:
                         f.write(data)
                     print(f"File '{filename}' received and saved to '{filepath}'.")
 
-                    secure_send_msg(conn, f"File '{filename}' received successfully.".encode('utf-8'))
+                    secure_send_msg(conn, f"File '{filename}' received successfully.".encode('utf-8'), session_key)
 
                 elif command == "get":
                     filename = parts[1]
@@ -202,19 +213,19 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
                     if os.path.exists(filepath):
                         # Signal that file exists and we are sending it
-                        secure_send_msg(conn, "FILE_EXISTS".encode('utf-8'))
+                        secure_send_msg(conn, "FILE_EXISTS".encode('utf-8'), session_key)
                         
                         # Wait for client's green light to avoid race conditions
-                        client_ready = secure_receive_msg(conn).decode('utf-8')
+                        client_ready = secure_receive_msg(conn, session_key).decode('utf-8')
                         if client_ready == "CLIENT_READY":
                             # read the file data
                             with open(filepath, "rb") as f:
                                 data = f.read()
                                 # Send the file
-                                secure_send_msg(conn, data) 
+                                secure_send_msg(conn, data, session_key) 
                                 print(f"File '{filename}' sent to client.")
                     else:
-                        secure_send_msg(conn, "ERROR: File not found.".encode('utf-8'))
+                        secure_send_msg(conn, "ERROR: File not found.".encode('utf-8'), session_key)
                         print(f"Client requested non-existent file: '{filename}'")
 
                 elif command == "exit":
