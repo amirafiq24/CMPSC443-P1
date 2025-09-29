@@ -5,6 +5,7 @@ import socket
 import os
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
+import srp
 
 # --- Configuration ---
 HOST = '127.0.0.1'  # Standard loopback interface address (localhost)
@@ -25,7 +26,7 @@ def load_valid_ids():
         print(f"'{VALID_IDS_FILE}' not found. Creating an empty file.")
         with open(VALID_IDS_FILE, "w") as f:
             pass  # Just create an empty file
-        return set()
+        return {}
     
     ids = {}
     with open(VALID_IDS_FILE, "r") as f:
@@ -133,15 +134,44 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         '''
 
         # --- your code here   ----
-        uname = secure_receive_msg(conn, session_key).decode()
-        A_hex = secure_receive_msg(conn, session_key).decode()
-        A = bytes.fromhex(A_hex)
+        user_id = secure_receive_msg(conn, session_key).decode()
+        
+        if user_id in VALID_IDS:
+            secure_send_msg(conn, b"EXISTS", session_key)
+            A = secure_receive_msg(conn, session_key)
 
-        svr = srp.Verifier(uname, salt, vkey, A)
-        s, B = srp.get_challenge()
+            if user_id in VALID_IDS:
+                salt, vkey = VALID_IDS[user_id]
+            else:
+                print("Invalid user_id")
+                conn.close()
+                exit()
+            svr = srp.Verifier(user_id, salt, vkey, A)
+            s, B = svr.get_challenge()
+
+            secure_send_msg(conn, salt, session_key)
+            secure_send_msg(conn, B, session_key)
+
+            M = secure_receive_msg(conn, session_key)
+            HAMK = svr.verify_session(M)
+
+            if HAMK:
+            # proof is good
+                secure_send_msg(conn, HAMK, session_key)
+            else:
+                # proof failed
+                print(f"Authentication failed for user '{user_id}'")
+                secure_send_msg(conn, b"ID_INVALID", session_key)
+                conn.close()
+        else:
+            secure_send_msg(conn, b"NO", session_key)
+            salt = secure_receive_msg(conn, session_key)
+            vkey = secure_receive_msg(conn, session_key)
+            save_new_id(user_id, salt, vkey, VALID_IDS)
 
 
         # placehoder logic for validating credentials
+        """
         if SEPARATOR in credentials:
             user_id, password = credentials.split(SEPARATOR, 1)
         else:
@@ -161,6 +191,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             # Register new user
             save_new_id(user_id, password, VALID_IDS)
             secure_send_msg(conn, "ID_VALID".encode('utf-8'), session_key)
+        """
 
         # --- your code end here  ----
 

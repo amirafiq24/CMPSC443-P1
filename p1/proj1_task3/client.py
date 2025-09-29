@@ -82,18 +82,42 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             sys.exit() 
 
         # ---- your code here   ----
-        usr = srp.User(user_id, password)
-        uname, A = usr.start_authentication()
+        secure_send_msg(s, user_id.encode(), session_key) #check if user is registered
+        exists = secure_receive_msg(s, session_key).decode()
 
-        secure_send_msg(s, uname.encode(), session_key)
-        secure_send_msg(s, A.hex().encode(), session_key)
+        if exists == "EXISTS": #login
+            usr = srp.User(user_id, password)
+            uname, A = usr.start_authentication()
 
-        credentials = f"{user_id}{SEPARATOR}{password}" # Placeholder for credentials to be sent 
+            secure_send_msg(s, A, session_key)
+
+            salt = secure_receive_msg(s, session_key)
+            B = secure_receive_msg(s, session_key)
+
+            M = usr.process_challenge(salt, B)
+            secure_send_msg(s, M, session_key)
+
+            HAMK = secure_receive_msg(s, session_key)
+            if HAMK == b"ID_INVALID":
+                print("Authentication Failed.")
+                sys.exit()
+
+            if usr.authenticated:
+                response = "ID_VALID"
+            else:
+                response = "ID_INVALID"
+        else:
+            salt, vkey = srp.create_salted_verification_key(user_id.encode(), password.encode())
+            secure_send_msg(s, salt, session_key)
+            secure_send_msg(s, vkey, session_key)
+            response = "ID_VALID"
+
+
+        #credentials = f"{user_id}{SEPARATOR}{password}" # Placeholder for credentials to be sent 
 
         # placehoder responce logic for validating credentials
-        secure_send_msg(s, credentials.encode('utf-8'), session_key)
+        #secure_send_msg(s, credentials.encode('utf-8'), session_key)
         
-        response = secure_receive_msg(s, session_key).decode('utf-8')
         if response != "ID_VALID":
 
             # DO NOT CHANGE THE PRINT STATEMENT BELOW. ALWAYS INCLUDE IT WHEN ID IS INVALID or REGISTER FAILED.
