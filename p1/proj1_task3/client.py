@@ -6,8 +6,9 @@ import os
 import sys
 
 from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305, AESCCM
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 import srp
 
@@ -138,8 +139,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             You should use key derivation function PBKDF2
         '''
         # ---- your code here   ----
-        file_encryption_key = "" # Placeholder for file encryption key
-
+        
 
 
         # --- Command Loop ---
@@ -173,14 +173,23 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     with open(filepath, "rb") as f:
                         file_data = f.read()
                         # ---- your code here   ----
-                        encrypted_data = file_data # Placeholder for encrypted file data
+                        salt = os.urandom(16)
+                        kdf = PBKDF2HMAC (
+                            algorithm=hashes.SHA256(),
+                            length=32,
+                            salt=salt,
+                            iterations=100000
+                        )
 
+                        file_encryption_key = kdf.derive(password.encode())
 
-
+                        aesccm = AESCCM(file_encryption_key)
+                        nonce = os.urandom(12)
+                        encrypted_data = aesccm.encrypt(nonce, file_data, None)
 
                         print(f"Server is ready. Sending file '{filepath}'...")
                          # Send file size first
-                        secure_send_msg(s, encrypted_data, session_key)  # Placeholder to initiate send_data
+                        secure_send_msg(s, salt + nonce + encrypted_data, session_key)  # Placeholder to initiate send_data
                     
                         # Wait for server's final confirmation
                         confirmation = secure_receive_msg(s, session_key).decode('utf-8')
@@ -202,8 +211,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     with open(save_path, "wb") as f:
                         '''TODO (Step 3): decode the file (Secrecy and Integrity)'''
                         # ---- your code here   ----
+                        salt, nonce, encrypted_data = data[:16], data[16:28], data[28:]
 
+                        kdf = PBKDF2HMAC (
+                            algorithm=hashes.SHA256(),
+                            length=32,
+                            salt=salt,
+                            iterations=100000
+                        )
 
+                        file_encryption_key = kdf.derive(password.encode())
+                        aesccm = AESCCM(file_encryption_key)
+                        data = aesccm.decrypt(nonce, encrypted_data, None)
 
                         f.write(data)
                     print(f"File '{filename}' downloaded successfully to '{save_path}'")
