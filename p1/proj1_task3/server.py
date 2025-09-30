@@ -140,12 +140,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             secure_send_msg(conn, b"EXISTS", session_key)
             A = secure_receive_msg(conn, session_key)
 
-            if user_id in VALID_IDS:
-                salt, vkey = VALID_IDS[user_id]
-            else:
-                print("Invalid user_id")
-                conn.close()
-                exit()
+            salt, vkey = VALID_IDS[user_id]
             svr = srp.Verifier(user_id, salt, vkey, A)
             s, B = svr.get_challenge()
 
