@@ -173,15 +173,15 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     with open(filepath, "rb") as f:
                         file_data = f.read()
                         # ---- your code here   ----
-                        salt = os.urandom(16)
+                        salt = os.urandom(16) #generate a random 16-bytes salt
                         kdf = PBKDF2HMAC (
                             algorithm=hashes.SHA256(),
                             length=32,
                             salt=salt,
-                            iterations=100000
+                            iterations=10000
                         )
 
-                        file_encryption_key = kdf.derive(password.encode())
+                        file_encryption_key = kdf.derive(password.encode()) #create file encryption key
 
                         aesccm = AESCCM(file_encryption_key)
                         nonce = os.urandom(12)
@@ -197,7 +197,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
             elif command == "get":
                 filename = parts[1]
-                save_path = os.path.join(DOWNLOAD_FOLDER, os.path.basename(filename))
+
+                user_dir = os.path.join(DOWNLOAD_FOLDER, user_id)
+                os.makedirs(user_dir, exist_ok=True) #create a directory if there is none
+
+                save_path = os.path.join(user_dir, os.path.basename(filename))
                 
                 # Check if server has the file
                 server_response = secure_receive_msg(s, session_key).decode('utf-8')

@@ -155,14 +155,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             M = secure_receive_msg(conn, session_key)
             HAMK = svr.verify_session(M)
 
-            if HAMK:
-            # proof is good
+            if HAMK: #hamk success
                 secure_send_msg(conn, HAMK, session_key)
-            else:
-                # proof failed
+            else: #hamk failed
                 print(f"Authentication failed for user '{user_id}'")
                 secure_send_msg(conn, b"ID_INVALID", session_key)
                 conn.close()
+                exit()
+            
         else:
             secure_send_msg(conn, b"NO", session_key)
             salt = secure_receive_msg(conn, session_key)
@@ -224,7 +224,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 '''
                 if command == "send":
                     filename = parts[1]
-                    filepath = os.path.join(SERVER_STORAGE, os.path.basename(filename))
+
+                    user_dir = os.path.join(SERVER_STORAGE, user_id)
+                    os.makedirs(user_dir, exist_ok=True)
+
+                    filepath = os.path.join(user_dir, os.path.basename(filename))
 
                     # Acknowledge the command and signal readiness to receive file
                     secure_send_msg(conn, "READY_TO_RECEIVE".encode('utf-8'), session_key)
@@ -240,7 +244,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
                 elif command == "get":
                     filename = parts[1]
-                    filepath = os.path.join(SERVER_STORAGE, filename)
+
+                    user_dir = os.path.join(SERVER_STORAGE, user_id)
+                    filepath = os.path.join(user_dir, filename)
 
                     if os.path.exists(filepath):
                         # Signal that file exists and we are sending it
