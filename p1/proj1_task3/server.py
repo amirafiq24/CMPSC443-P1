@@ -134,9 +134,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         '''
 
         # --- your code here   ----
-        user_id = secure_receive_msg(conn, session_key).decode()
+        user_id = secure_receive_msg(conn, session_key).decode() #receive user id 
         
-        if user_id in VALID_IDS:
+        if user_id in VALID_IDS: #if it is in VALID_IDS, login
             secure_send_msg(conn, b"EXISTS", session_key)
             A = secure_receive_msg(conn, session_key)
 
@@ -158,11 +158,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 conn.close()
                 exit()
             
-        else:
+        else: #register
             secure_send_msg(conn, b"NO", session_key)
+            #receive salt and vkey from client
             salt = secure_receive_msg(conn, session_key)
             vkey = secure_receive_msg(conn, session_key)
-            save_new_id(user_id, salt, vkey, VALID_IDS)
+            save_new_id(user_id, salt, vkey, VALID_IDS) #save the user into file and dictionary
 
 
         # placehoder logic for validating credentials

@@ -83,8 +83,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             sys.exit() 
 
         # ---- your code here   ----
-        secure_send_msg(s, user_id.encode(), session_key) #check if user is registered
-        exists = secure_receive_msg(s, session_key).decode()
+        secure_send_msg(s, user_id.encode(), session_key) #send user id to check if user is registered
+        exists = secure_receive_msg(s, session_key).decode() 
 
         if exists == "EXISTS": #login
             usr = srp.User(user_id, password)
@@ -107,8 +107,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 response = "ID_VALID"
             else:
                 response = "ID_INVALID"
-        else:
-            salt, vkey = srp.create_salted_verification_key(user_id.encode(), password.encode())
+        else: #register
+            salt, vkey = srp.create_salted_verification_key(user_id.encode(), password.encode()) #create salt and vkey
             secure_send_msg(s, salt, session_key)
             secure_send_msg(s, vkey, session_key)
             response = "ID_VALID"
@@ -140,7 +140,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         '''
         # ---- your code here   ----
         
-        
+
 
         # --- Command Loop ---
         while True:
